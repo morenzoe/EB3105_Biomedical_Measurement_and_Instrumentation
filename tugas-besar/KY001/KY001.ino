@@ -10,6 +10,10 @@ OneWire oneWire(KY001_Signal_PIN);
 DallasTemperature sensors(&oneWire);
 
 void setup() {
+  // heater
+  pinMode(7,OUTPUT);
+  digitalWrite(7, LOW);    // heater turn on
+  
   // serial output initialization
   Serial.begin(9600);
   Serial.println("KY-001 temperature measurement");
