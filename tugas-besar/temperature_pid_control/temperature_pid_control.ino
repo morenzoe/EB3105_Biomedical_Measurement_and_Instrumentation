@@ -1,37 +1,54 @@
-#include <EEPROM.h>               //Used to save setpoint when power-off
-
-#include <SPI.h>
+//#include <EEPROM.h>               //Used to save setpoint when power-off
+//#include <SPI.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>         //download here: https://www.electronoobs.com/eng_arduino_Adafruit_GFX.php
-#include <Adafruit_SSD1306.h>     //downlaod here: https://www.electronoobs.com/eng_arduino_Adafruit_SSD1306.php
-#define OLED_RESET 5
-Adafruit_SSD1306 display(OLED_RESET);
+//#include <Adafruit_GFX.h>         //download here: https://www.electronoobs.com/eng_arduino_Adafruit_GFX.php
+//#include <Adafruit_SSD1306.h>     //downlaod here: https://www.electronoobs.com/eng_arduino_Adafruit_SSD1306.php
+//#define OLED_RESET 5
+//Adafruit_SSD1306 display(OLED_RESET);
 
+// Temperature Sensor
+#include <DallasTemperature.h>
+#include <OneWire.h>
+#define KY001_Signal_PIN 4
 
+/*
+//Temperature Sensor Bawaan (Gapake)
 #include "max6675.h"              //download here: https://electronoobs.com/eng_arduino_max6675.php
 int thermoDO = 9;
 int thermoCS = 8;
 int thermoCLK = 13;
 MAX6675 thermocouple(thermoCLK, thermoCS, thermoDO);
+*/
 
-//Arduino Pins
+// Solid State Relay
 #define SSR_PIN  11
-#define but_up  4
-#define but_down  5
-#define but_stop  6
+
+// Fan PWM
+#define Fan_PWM_PIN 9
+int fanValue = 255; // range 0 - 255
+
+//State
+uint8_t state = 0; 
+
+/*
+#define but_up  4   //button
+#define but_down  5   //button
+#define but_stop  6 //button
 #define led  10
 
+
 //Variables
-uint8_t state = 0;
+
 bool D4_state = 1;
 bool D5_state = 1;
 bool D6_state = 1;
 bool LED_State = LOW;
 float prev_isr_timeD4, prev_isr_timeD5, prev_isr_timeD6;
+*/
 
 float real_temp;           //We will store here the real temp 
-float Setpoint = 100;      //In degrees C
-float SetpointDiff = 30;   //In degrees C
+float Setpoint = 36;      //In degrees C
+float SetpointDiff = 5;   //In degrees C
 float elapsedTime, now_time, prev_time;        //Variables for time control
 float refresh_rate = 200;                   //PID loop time in ms
 float now_pid_error, prev_pid_error;
@@ -45,29 +62,49 @@ float kd=0.8;         //Mine was 0.8
 float PID_p, PID_i, PID_d, PID_total;
 ///////////////////////////////////////////////////////
 
-
+// libraries configuration
+OneWire oneWire(KY001_Signal_PIN);
+DallasTemperature sensors(&oneWire);
 
 void setup() {
-  cli();
-  Setpoint = EEPROM.read(0)+1; //we adf 
-  sei();
+//  cli(); //Matiin Interrupts
+//  Setpoint = EEPROM.read(0)+1; //we adf 
+//  sei(); //Nyalain Interrupts
   
-  Serial.begin(250000);     //For debug
+  //Serial.begin(250000);     //For debug
+  Serial.begin(9600);
   pinMode(SSR_PIN, OUTPUT);  
   digitalWrite(SSR_PIN, HIGH);    // When HIGH, the SSR is Off
-  
-  pinMode(led, OUTPUT);  
-  digitalWrite(led, LOW);
-  real_temp = thermocouple.readCelsius();
-  
+
   TCCR2B = TCCR2B & B11111000 | B00000111;    // D11 PWM is now 30.64 Hz
   
+  //pinMode(led, OUTPUT);  //LED
+  //digitalWrite(led, LOW);
+  //real_temp = thermocouple.readCelsius(); //Ganti Sesuaiin sama sensor kita
+
+  Serial.println("KY-001 temperature measurement");
+  sensors.begin();
+
+  //Baca Nilai
+  sensors.requestTemperatures();
+  real_temp = (sensors.getTempCByIndex(0))*0.8154 + 3.8662;
+  Serial.print(real_temp);
+  
+  //Nyalain Kipas
+  analogWrite(Fan_PWM_PIN, fanValue);
+
+  
+
+/*
+  //Setting Interrupt
   pinMode(but_up, INPUT_PULLUP); 
   pinMode(but_down, INPUT_PULLUP); 
   pinMode(but_stop, INPUT_PULLUP); 
-  PCICR |= B00000100;      //Bit2 = 1 -> "PCIE2" enabeled (PCINT16 to PCINT23)
+  //Ngaktifin pin D4, D5, D6 buat trigger interrupt
+  PCICR |= B00000100;      //Bit2 = 1 -> "PCIE2" enabeled (PCINT16 to PCINT23) 
   PCMSK2 |= B01110000;     //PCINT20, CINT21, CINT22 enabeled -> D4, D5, D6 will trigger interrupt
 
+  //LCD Set Up
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3C (for the 128x32 or 64 from eBay)
   delay(100);
   display.clearDisplay();
@@ -76,6 +113,7 @@ void setup() {
   display.display();
   delay(100);
   //EEPROM.write(1, Setpoint);
+*/
   
 }
 
@@ -94,33 +132,51 @@ void loop() {
 
 
 //Fucntion for ramping up the temperature
+//Function buat nyalain SSR/heater kalau suhunya masih kurang
 void ramp_up(void){  
   //Rising temperature to (Setpoint - SetpointDiff)
   elapsedTime = millis() - prev_time; 
   if(elapsedTime > refresh_rate){  
-    real_temp = thermocouple.readCelsius();
+    //real_temp = thermocouple.readCelsius();
+    //Baca Nilai
+    sensors.requestTemperatures();
+    real_temp = (sensors.getTempCByIndex(0))*0.8154 + 3.8662;
     
     if(real_temp < (Setpoint - SetpointDiff)){
       digitalWrite(SSR_PIN, LOW);                //Turn On SSR
-      digitalWrite(led, HIGH);
+      //digitalWrite(led, HIGH);
     }
     else
     {
       digitalWrite(SSR_PIN, HIGH);                 //Turn Off SSR
-      digitalWrite(led, LOW);
+      //digitalWrite(led, LOW);
       state = 1;                                  //Already hot so we go to PID control
     }
-    
+
+    /*
+    //Display LCD (Gak Perlu)
     display.clearDisplay();  
     display.setCursor(0,0);           
     display.print("Set: "); 
     display.println(Setpoint,1);
-    
+    */
+
+    Serial.print("Set: "); 
+    Serial.println(Setpoint,1);
+
+    /*
     display.print((char)247); 
     display.print("C: "); 
     display.println(real_temp,1);     
     display.print("Ramp Up");   
     display.display();//Finally display the created image
+    */
+
+    Serial.print((char)247); 
+    Serial.print("C: "); 
+    Serial.println(real_temp,1);     
+    Serial.print("Ramp Up");   
+    //Serial.display();//Finally display the created image
     Serial.println(real_temp);                //For debug only
     prev_time = millis();
   }
@@ -134,7 +190,12 @@ void PID_control(void){
   elapsedTime = millis() - prev_time;   
   if(elapsedTime > refresh_rate){    
     //1. We get the temperature and calculate the error
-    real_temp = thermocouple.readCelsius();
+    //real_temp = thermocouple.readCelsius();
+
+    //Baca Nilai
+    sensors.requestTemperatures();
+    real_temp = (sensors.getTempCByIndex(0))*0.8154 + 3.8662;
+    
     now_pid_error = Setpoint - real_temp;
   
     //2. We calculate PID values
@@ -156,6 +217,7 @@ void PID_control(void){
     //5. Write PWM signal to the SSR
     analogWrite(SSR_PIN, 255-PID_total);
 
+    /*
     //6. Print values to the OLED dsiplay
     display.clearDisplay();
           
@@ -169,14 +231,26 @@ void PID_control(void){
     display.println("PID mode");  
     display.print(PID_total);
     display.display();//Finally display the created image
+    */
+
+    Serial.print("Set: "); 
+    Serial.println(Setpoint,1);
+    
+    Serial.print((char)247); 
+    Serial.print("C: "); 
+    Serial.println(real_temp,1);  
+    Serial.println("PID mode");  
+    Serial.print(PID_total);
+    //Serial.display();//Finally display the created image
     
     
     //7. Save values for next loop
     prev_time = millis();                       //Store time for next loop
     prev_pid_error = now_pid_error;             //Store error for next loop
     //Serial.println(elapsedTime);                //For debug only
-    LED_State = !LED_State;
-    digitalWrite(led, LED_State);
+    
+    //LED_State = !LED_State;
+    //digitalWrite(led, LED_State);
   }  
 }//End PID_control loop
 
@@ -189,9 +263,12 @@ void PID_control(void){
 //Function for turning off everything and monitoring the coolidn down process
 void cool_down(void){
   digitalWrite(SSR_PIN, HIGH);    //SSR is OFF with HIGH pulse!
-  digitalWrite(led, LOW);
+  //digitalWrite(led, LOW);
   elapsedTime = millis() - prev_time;   
-  if(elapsedTime > refresh_rate){  
+  if(elapsedTime > refresh_rate){ 
+
+    /*
+     //Nampilin di LCD
     display.clearDisplay();
             
     display.setCursor(0,0);  
@@ -200,12 +277,19 @@ void cool_down(void){
        
     display.print("Off");       
     display.display();//Finally display the created image
+    */
+
+    Serial.print("Set: "); 
+    Serial.println(Setpoint,1);
+       
+    Serial.print("Off");       
+    //Serial.display();//Finally display the created image
     prev_time = millis();
   }
 }//End cool_down loop
 
-
-
+/*
+//Interrupt
 ISR (PCINT2_vect) 
 {
   cli();  
@@ -217,6 +301,7 @@ ISR (PCINT2_vect)
     }
       
   }
+  //Naikin Set Point
   else if (D4_state == 1 && (millis() - prev_isr_timeD4 > 2)){
     Setpoint ++;
     int st = Setpoint;
@@ -233,6 +318,7 @@ ISR (PCINT2_vect)
     }
       
   }
+  //Nurunin Set Point
   else if (D5_state == 1 && (millis() - prev_isr_timeD5 > 2)){
     Setpoint --;
     int st = Setpoint;
@@ -263,12 +349,6 @@ ISR (PCINT2_vect)
   sei();
 
   
-} void setup() {
-  // put your setup code here, to run once:
+} 
+*/
 
-}
-
-void loop() {
-  // put your main code here, to run repeatedly:
-
-}
