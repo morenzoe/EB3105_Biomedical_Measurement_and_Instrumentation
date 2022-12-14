@@ -28,8 +28,9 @@ void loop()
   // temperature measurment will be started...
   sensors.requestTemperatures();
   // ... and measured temperature will be displayed
+  // kalibrasi y = 0.8154*x + 3.8662
   Serial.print("Temperature: ");
-  Serial.print(sensors.getTempCByIndex(0));
+  Serial.print((sensors.getTempCByIndex(0))*0.8154 + 3.8662);
   Serial.write(176); // UniCode of the char-symbol "°-Symbol"
   Serial.println("C");
   
