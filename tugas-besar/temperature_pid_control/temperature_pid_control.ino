@@ -48,7 +48,7 @@ float prev_isr_timeD4, prev_isr_timeD5, prev_isr_timeD6;
 
 float real_temp;           //We will store here the real temp 
 float Setpoint = 36;      //In degrees C
-float SetpointDiff = 5;   //In degrees C
+float SetpointDiff = 2;   //In degrees C
 float elapsedTime, now_time, prev_time;        //Variables for time control
 float refresh_rate = 200;                   //PID loop time in ms
 float now_pid_error, prev_pid_error;
@@ -160,7 +160,7 @@ void ramp_up(void){
     display.print("Set: "); 
     display.println(Setpoint,1);
     */
-
+    Serial.println("Ramp Up");
     Serial.print("Set: "); 
     Serial.println(Setpoint,1);
 
@@ -171,13 +171,14 @@ void ramp_up(void){
     display.print("Ramp Up");   
     display.display();//Finally display the created image
     */
-
+    
     Serial.print((char)247); 
     Serial.print("C: "); 
     Serial.println(real_temp,1);     
-    Serial.print("Ramp Up");   
+       
     //Serial.display();//Finally display the created image
-    Serial.println(real_temp);                //For debug only
+    //Serial.println(real_temp);                //For debug only
+    Serial.println();
     prev_time = millis();
   }
 }//End of ramp_up loop
@@ -233,14 +234,17 @@ void PID_control(void){
     display.display();//Finally display the created image
     */
 
+    Serial.print("PID mode: ");  
+    Serial.println(PID_total);
+
     Serial.print("Set: "); 
     Serial.println(Setpoint,1);
     
     Serial.print((char)247); 
     Serial.print("C: "); 
     Serial.println(real_temp,1);  
-    Serial.println("PID mode");  
-    Serial.print(PID_total);
+    
+    Serial.println();
     //Serial.display();//Finally display the created image
     
     
@@ -351,4 +355,3 @@ ISR (PCINT2_vect)
   
 } 
 */
-
