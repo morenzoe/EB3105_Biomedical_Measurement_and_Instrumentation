@@ -45,6 +45,10 @@ float pid_i = 0;            // Nilai komponen integral PID
 int pid_total;              // Nilai PID
 
 void setup() {
+  // Mengatur pin kipas
+  pinMode(fan_pin, OUTPUT);  
+  digitalWrite(fan_pin, LOW);
+  
   // Memulai komunikasi serial
   Serial.begin(9600);
 
@@ -52,7 +56,7 @@ void setup() {
   pinMode(ssr_pin, OUTPUT);  
   digitalWrite(ssr_pin, HIGH);
   TCCR2B = TCCR2B & B11111000 | B00000111;  // pin D11 PWM 30.64 Hz
-
+  
   // Memulai pembacaan temperatur
   sensors.begin();
   // Menyimpan temperatur awal
@@ -78,16 +82,13 @@ void loop() {
         // Memasuki mode shutdown
         modes = 4;
         //Serial.println("off");
-      } else if (command==116) { // 't'
-        // Memasuki mode pid testing
-        modes = 5;
       }
   }
   
   // Mode off
   if(modes == 0){
     digitalWrite(ssr_pin, HIGH);                 //Turn Off SSR
-    digitalWrite(fan_pin, HIGH);                 //Turn Off fan
+    digitalWrite(fan_pin, LOW);                 //Turn Off fan
   } else if (modes == 1){
     mode_rise(); 
   } else if (modes == 2){
@@ -96,8 +97,6 @@ void loop() {
     mode_fall(); 
   } else if (modes == 4){
     mode_shutdown(); 
-  } else if (modes == 5){
-    mode_pid_testing(); 
   }
 }
 
@@ -121,9 +120,9 @@ void mode_rise(void){
       modes = 2;                                  //Already hot so we go to PID control
     }
 
-    Serial.println("Rise");
+    //Serial.println("Rise");
     Serial.println(temp_read,1);     
-    Serial.println();
+    //Serial.println();
     
     time_prev = time_now;
   }
@@ -153,17 +152,17 @@ void mode_pid(void){
     //5. Write PWM signal to the SSR
     analogWrite(ssr_pin, 255-pid_total);
 
-    Serial.print("PID PWM: ");  
-    Serial.print(255-pid_total);
-    Serial.print(", p: ");
-    Serial.print(pid_p);
-    Serial.print(", i: ");
-    Serial.print(pid_i);
-    Serial.print(", total: ");
-    Serial.println(pid_total);
+//    Serial.print("PID PWM: ");  
+//    Serial.print(255-pid_total);
+//    Serial.print(", p: ");
+//    Serial.print(pid_p);
+//    Serial.print(", i: ");
+//    Serial.print(pid_i);
+//    Serial.print(", total: ");
+//    Serial.println(pid_total);
 
     Serial.println(temp_read,1);  
-    Serial.println();
+//    Serial.println();
     
     //7. Save values for next loop
     time_prev = time_now;                       //Store time for next loop
@@ -200,9 +199,9 @@ void mode_fall(void){
       modes = 2;                                  //Already cold so we go to PID control
     }
 
-    Serial.println("Fall");
+//    Serial.println("Fall");
     Serial.println(temp_read,1);     
-    Serial.println();
+//    Serial.println();
     
     time_prev = time_now;
   }
@@ -223,66 +222,14 @@ void mode_shutdown(void){
     else
     {
       digitalWrite(ssr_pin, HIGH);                 //Turn Off SSR
-      digitalWrite(fan_pin, HIGH);                 //Turn Off fan
+      digitalWrite(fan_pin, LOW);                 //Turn Off fan
       modes = 0;                                  //Already cold so we turn off
     }
 
-    Serial.println("Shutdown");
+//    Serial.println("Shutdown");
     Serial.println(temp_read,1);     
-    Serial.println();
+//    Serial.println();
     
     time_prev = time_now;
   }
 }//End cool_down loop
-
-//----------------Testing--------------
-void mode_pid_testing(void){
-  time_now = millis();
-  time_passed = time_now - time_prev;   
-  if(time_passed > sample_period){    
-    //1. We get the temperature and calculate the error
-    //Baca Nilai
-    sensors.requestTemperatures();
-    temp_read = (sensors.getTempCByIndex(0))*0.8904+1.2337;
-    temp_read = (float)round(temp_read*10)/10;
-    
-    temp_error = temp_set - temp_read;
-  
-    //2. We calculate PID values
-    pid_p = pid_kp * temp_error;
-    pid_i = pid_i + (pid_ki * temp_error);
-
-    //3. Calculate and map total PID value
-    pid_total = floor(pid_p + pid_i);  
-    pid_total = constrain(pid_total, 0, 255);
-
-    // Memanaskan inkubator untuk simulasi overshoot
-    digitalWrite(ssr_pin, LOW); // Turn on SSR
-
-    Serial.print("SIM PWM: ");  
-    Serial.print(255-pid_total);
-    Serial.print(", p: ");
-    Serial.print(pid_p);
-    Serial.print(", i: ");
-    Serial.print(pid_i);
-    Serial.print(", total: ");
-    Serial.println(pid_total);
-
-    Serial.println(temp_read,1);  
-    Serial.println();
-    
-    //7. Save values for next loop
-    time_prev = time_now;                       //Store time for next loop
-
-    // Kembali ke mode rise jika turun terlalu jauh
-    if (temp_read <= (temp_set - (temp_diff+0.5))){
-      modes = 1;
-      // Reset nilai komponen integral PID
-      pid_i = 0;
-    } else if (temp_read >= (temp_set + (temp_diff+0.5))){
-      modes = 3;
-      // Reset nilai komponen integral PID
-      pid_i = 0;
-    }
-  }  
-}
